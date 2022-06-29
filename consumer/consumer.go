@@ -1,7 +1,8 @@
-package consumer
+package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/streadway/amqp"
 )
@@ -11,7 +12,7 @@ import (
 */
 func main() {
 	// rabbitMQ server URL
-	amqpServerURL := "AMQP_SERVER_URL"
+	amqpServerURL := os.Getenv("AMQP_SERVER_URL")
 
 	// create new rabbitMQ connection
 	connectRabbitMQ, err := amqp.Dial(amqpServerURL)
