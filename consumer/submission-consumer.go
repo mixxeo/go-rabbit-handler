@@ -44,7 +44,7 @@ func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
 		"direct",              // type
 		true,                  // durable
 		false,                 // delete when complete
-		false,                 // internal
+		false,                 // internal(deprecated)
 		false,                 // noWait
 		nil,                   // arguments
 	); err != nil {

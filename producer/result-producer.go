@@ -9,6 +9,14 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// submission_result := make(map[string]interface{})
+// submission_result["submission_id"] = 999
+// submission_result["create_time"] = time.Now()
+// submission_result["result"] = "Accepted"
+// submission_result["accepted_number"] = 10
+// submission_result["total_score"] = 100
+// body, _ := json.Marshal(submission_result)
+
 func Publish(done chan bool, amqpURI, body string) error {
 	// Create New RabbitMQ Connection (go <-> rabbitMQ)
 	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
@@ -72,7 +80,6 @@ func Publish(done chan bool, amqpURI, body string) error {
 				Body:            []byte(body),
 				DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
 				Priority:        0,              // 0-9
-				// a bunch of application/implementation-specific fields
 			},
 		); err != nil {
 			return fmt.Errorf("Exchange Publish: %s", err)
