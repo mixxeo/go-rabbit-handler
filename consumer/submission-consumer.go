@@ -26,7 +26,7 @@ func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
 
 	// Create New RabbitMQ Connection (go <-> RabbitMQ)
 	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
-	config.Properties.SetClientConnectionName("go-judger")
+	config.Properties.SetClientConnectionName("go-judger-consumer")
 	c.connection, err = amqp.DialConfig(amqpURI, config)
 	if err != nil {
 		return nil, fmt.Errorf("Dial: %s", err)
