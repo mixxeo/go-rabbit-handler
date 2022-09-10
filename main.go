@@ -3,16 +3,19 @@ package main
 import (
 	"fmt"
 
-	"github.com/rabbit/consumer"
+	"github.com/go-rabbit-handler/consumer"
 )
 
 func main() {
-	consumer, err := consumer.NewConsumer("URI", "ctag")
+	c, err := consumer.NewConsumer("URI", "ctag")
+	if err != nil {
+		fmt.Errorf("%s", err)
+	}
 
 	// running until Consumer is done
-	<-consumer.done
+	<-c.Done
 
-	if err := consumer.CleanUp(); err != nil {
+	if err := c.CleanUp(); err != nil {
 		fmt.Errorf("Error during clean up: %s", err)
 	}
 }

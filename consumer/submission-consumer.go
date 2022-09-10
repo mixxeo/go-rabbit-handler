@@ -11,15 +11,15 @@ type Consumer struct {
 	connection *amqp.Connection
 	channel    *amqp.Channel
 	tag        string
-	done       chan error
+	Done       chan error
 }
 
 func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
-	consumer := &Consumer{
+	c := &Consumer{
 		connection: nil,
 		channel:    nil,
 		tag:        ctag,
-		done:       make(chan error),
+		Done:       make(chan error),
 	}
 
 	var err error
@@ -27,19 +27,19 @@ func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
 	// Create New RabbitMQ Connection (go <-> RabbitMQ)
 	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
 	config.Properties.SetClientConnectionName("go-judger")
-	consumer.connection, err = amqp.DialConfig(amqpURI, config)
+	c.connection, err = amqp.DialConfig(amqpURI, config)
 	if err != nil {
 		return nil, fmt.Errorf("Dial: %s", err)
 	}
 
 	// Open a channel
-	consumer.channel, err = consumer.connection.Channel()
+	c.channel, err = c.connection.Channel()
 	if err != nil {
 		return nil, fmt.Errorf("Channel: %s", err)
 	}
 
 	// Declare(Create) Exchange
-	if err = consumer.channel.ExchangeDeclare(
+	if err = c.channel.ExchangeDeclare(
 		"submission-exchange", // name of the exchange
 		"direct",              // type
 		true,                  // durable
@@ -52,7 +52,7 @@ func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
 	}
 
 	// Declare(Create) Queue
-	queue, err := consumer.channel.QueueDeclare(
+	queue, err := c.channel.QueueDeclare(
 		"submission-queue", // name of the queue
 		true,               // durable
 		false,              // delete when unused
@@ -65,7 +65,7 @@ func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
 	}
 
 	// Bind Queue to Exchange
-	if err = consumer.channel.QueueBind(
+	if err = c.channel.QueueBind(
 		queue.Name,            // name of the queue
 		"submission",          // bindingKey
 		"submission-exchange", // sourceExchange
@@ -77,23 +77,23 @@ func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
 
 	// Subscribe queue for consume messages
 	// Return `<- chan Delivery`
-	messages, err := consumer.channel.Consume(
-		queue.Name,   // queue name
-		consumer.tag, // consumer
-		false,        // autoAck
-		false,        // exclusive
-		false,        // noLocal
-		false,        // noWait
-		nil,          // arguments
+	messages, err := c.channel.Consume(
+		queue.Name, // queue name
+		c.tag,      // consumer
+		false,      // autoAck
+		false,      // exclusive
+		false,      // noLocal
+		false,      // noWait
+		nil,        // arguments
 	)
 	if err != nil {
 		return nil, fmt.Errorf("Queue Consume: %s", err)
 	}
 
 	// Receive Messages
-	go handleMessages(messages, consumer.done)
+	go handleMessages(messages, c.Done)
 
-	return consumer, nil
+	return c, nil
 }
 
 func handleMessages(messages <-chan amqp.Delivery, done chan error) {
@@ -122,5 +122,5 @@ func (c *Consumer) CleanUp() error {
 	defer log.Print("RabbitMQ connection clear done")
 
 	// wait for handle() to exit
-	return <-c.done
+	return <-c.Done
 }
