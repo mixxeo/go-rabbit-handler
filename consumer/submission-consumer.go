@@ -38,6 +38,15 @@ func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
 		return nil, fmt.Errorf("Channel: %s", err)
 	}
 
+	// Set prefetchCount for consume channel
+	if err = c.channel.Qos(
+		1,     // prefetchCount
+		0,     // prefetchSize
+		false, // global
+	); err != nil {
+		return nil, fmt.Errorf("Qos Set: %s", err)
+	}
+
 	// Declare(Create) Exchange
 	if err = c.channel.ExchangeDeclare(
 		"submission-exchange", // name of the exchange
