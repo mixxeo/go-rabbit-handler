@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/go-rabbit-handler/constants"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -20,7 +21,7 @@ import (
 func Publish(done chan bool, amqpURI, body string) error {
 	// Create New RabbitMQ Connection (go <-> rabbitMQ)
 	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
-	config.Properties.SetClientConnectionName("go-judger-producer")
+	config.Properties.SetClientConnectionName(constants.PRODUCER_CONNECTION)
 	connection, err := amqp.DialConfig(amqpURI, config)
 	if err != nil {
 		return fmt.Errorf("Dial: %s", err)
@@ -35,13 +36,13 @@ func Publish(done chan bool, amqpURI, body string) error {
 
 	// Declare(Create) Exchange
 	if err := channel.ExchangeDeclare(
-		"result-exchange", // name
-		"direct",          // type
-		true,              // durable
-		false,             // auto-deleted
-		false,             // internal
-		false,             // noWait
-		nil,               // arguments
+		constants.RESULT_EXCHANGE, // name
+		constants.DIRECT_TYPE,     // type
+		true,                      // durable
+		false,                     // auto-deleted
+		false,                     // internal
+		false,                     // noWait
+		nil,                       // arguments
 	); err != nil {
 		return fmt.Errorf("Exchange Declare: %s", err)
 	}
@@ -69,10 +70,10 @@ func Publish(done chan bool, amqpURI, body string) error {
 		log.Printf("publishing %dB body (%q)", len(body), body)
 
 		if err := channel.PublishWithContext(ctx,
-			"result-exchange", // publish to an exchange
-			"result",          // routing to 0 or more queues
-			false,             // mandatory
-			false,             // immediate
+			constants.RESULT_EXCHANGE, // publish to an exchange
+			constants.RESULT_KEY,      // routing to 0 or more queues
+			false,                     // mandatory
+			false,                     // immediate
 			amqp.Publishing{
 				Headers:         amqp.Table{},
 				ContentType:     "text/plain",
