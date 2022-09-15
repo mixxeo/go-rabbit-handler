@@ -48,43 +48,6 @@ func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
 		return nil, fmt.Errorf("Qos Set: %s", err)
 	}
 
-	// Declare(Create) Exchange
-	if err = c.channel.ExchangeDeclare(
-		constants.SUBMISSION_EXCHANGE, // name of the exchange
-		constants.DIRECT_TYPE,         // type
-		true,                          // durable
-		false,                         // delete when complete
-		false,                         // internal(deprecated)
-		false,                         // noWait
-		nil,                           // arguments
-	); err != nil {
-		return nil, fmt.Errorf("Exchange Declare: %s", err)
-	}
-
-	// Declare(Create) Queue
-	queue, err := c.channel.QueueDeclare(
-		constants.SUBMISSION_QUEUE, // name of the queue
-		true,                       // durable
-		false,                      // delete when unused
-		false,                      // exclusive
-		false,                      // noWait
-		nil,                        // arguments
-	)
-	if err != nil {
-		return nil, fmt.Errorf("Queue Declare: %s", err)
-	}
-
-	// Bind Queue to Exchange
-	if err = c.channel.QueueBind(
-		constants.SUBMISSION_QUEUE,    // name of the queue
-		constants.SUBMISSION_KEY,      // bindingKey
-		constants.SUBMISSION_EXCHANGE, // sourceExchange
-		false,                         // noWait
-		nil,                           // arguments
-	); err != nil {
-		return nil, fmt.Errorf("Queue Bind: %s", err)
-	}
-
 	// Subscribe queue for consume messages
 	// Return `<- chan Delivery`
 	messages, err := c.channel.Consume(
