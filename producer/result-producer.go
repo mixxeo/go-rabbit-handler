@@ -54,19 +54,19 @@ func (p *Producer) OpenChannel() error {
 	// add listner for confirmation
 	confirms := p.channel.NotifyPublish(make(chan amqp.Confirmation, 1))
 
-	go p.confirmHandler(confirms)
+	go confirmHandler(p.Done, p.publishes, confirms)
 
 	return nil
 }
 
-func (p *Producer) confirmHandler(confirms chan amqp.Confirmation) {
+func confirmHandler(done chan error, publishes chan uint64, confirms chan amqp.Confirmation) {
 	m := make(map[uint64]bool)
 	for {
 		select {
-		case <-p.Done:
+		case <-done:
 			log.Println("confirmHandler is stopping")
 			return
-		case publishSeqNo := <-p.publishes:
+		case publishSeqNo := <-publishes:
 			log.Printf("waiting for confirmation of %d", publishSeqNo)
 			m[publishSeqNo] = false
 		case confirmed := <-confirms:

@@ -15,28 +15,33 @@ type Consumer struct {
 	Done       chan error
 }
 
-func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
-	c := &Consumer{
+func NewConsumer(ctag string) *Consumer {
+	return &Consumer{
 		connection: nil,
 		channel:    nil,
 		tag:        ctag,
 		Done:       make(chan error),
 	}
+}
 
+func (c *Consumer) CreateConnection(amqpURI string) error {
 	var err error
 
-	// Create New RabbitMQ Connection (go <-> RabbitMQ)
 	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
 	config.Properties.SetClientConnectionName(constants.CONSUMER_CONNECTION)
 	c.connection, err = amqp.DialConfig(amqpURI, config)
 	if err != nil {
-		return nil, fmt.Errorf("Dial: %s", err)
+		return fmt.Errorf("dial: %s", err)
 	}
 
-	// Open a channel
-	c.channel, err = c.connection.Channel()
-	if err != nil {
-		return nil, fmt.Errorf("Channel: %s", err)
+	return nil
+}
+
+func (c *Consumer) OpenChannel() error {
+	var err error
+
+	if c.channel, err = c.connection.Channel(); err != nil {
+		return fmt.Errorf("channel: %s", err)
 	}
 
 	// Set prefetchCount for consume channel
@@ -45,11 +50,14 @@ func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
 		0,     // prefetchSize
 		false, // global
 	); err != nil {
-		return nil, fmt.Errorf("Qos Set: %s", err)
+		return fmt.Errorf("qos set: %s", err)
 	}
 
-	// Subscribe queue for consume messages
-	// Return `<- chan Delivery`
+	return nil
+
+}
+
+func (c *Consumer) Subscribe() error {
 	messages, err := c.channel.Consume(
 		constants.SUBMISSION_QUEUE, // queue name
 		c.tag,                      // consumer
@@ -60,13 +68,13 @@ func NewConsumer(amqpURI, ctag string) (*Consumer, error) {
 		nil,                        // arguments
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Queue Consume: %s", err)
+		return fmt.Errorf("queue consume: %s", err)
 	}
 
 	// Receive Messages
 	go handleMessages(messages, c.Done)
 
-	return c, nil
+	return nil
 }
 
 func handleMessages(messages <-chan amqp.Delivery, done chan error) {
