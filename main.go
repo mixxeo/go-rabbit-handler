@@ -8,13 +8,6 @@ import (
 	"github.com/go-rabbit-handler/producer"
 )
 
-// import (
-// 	"fmt"
-
-// 	"github.com/go-rabbit-handler/consumer"
-// 	"github.com/go-rabbit-handler/producer"
-// )
-
 func main() {
 	/*main for consumer*/
 	/*
@@ -33,30 +26,29 @@ func main() {
 
 	/*main for producer*/
 	var err error
-	done := make(chan bool)
-	publishes := make(chan uint64, 8)
+	p := producer.NewProducer()
 
-	producerConnection, err := producer.CreateConnection()
+	err = p.CreateConnection("amqp://skku:1234@localhost:5672/%2f")
 	if err != nil {
 		fmt.Errorf("%s", err)
 	}
-	defer producerConnection.Close()
+	// connection close
 
-	producerChannel, err := producer.OpenChannel(producerConnection, done, publishes)
+	err = p.OpenChannel()
 	if err != nil {
 		fmt.Errorf("%s", err)
 	}
-	defer producerChannel.Close()
+	// channel close
 
 	submission_result := make(map[string]interface{})
 	submission_result["submission_id"] = 999
 	submission_result["create_time"] = time.Now()
 	body, _ := json.Marshal(submission_result)
 
-	err = producer.PublishMessage(producerChannel, publishes, body)
+	err = p.PublishMessage(body)
 	if err != nil {
 		fmt.Errorf("%s", err)
 	}
 
-	done <- true
+	p.Done <- nil
 }

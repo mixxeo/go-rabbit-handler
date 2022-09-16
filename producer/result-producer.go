@@ -10,45 +10,63 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func CreateConnection() (*amqp.Connection, error) {
-	// Create New RabbitMQ Connection (go <-> rabbitMQ)
-	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
-	config.Properties.SetClientConnectionName(constants.PRODUCER_CONNECTION)
-	connection, err := amqp.DialConfig("amqURI", config)
-	if err != nil {
-		return nil, fmt.Errorf("dial: %s", err)
-	}
-
-	return connection, nil
+type Producer struct {
+	connection *amqp.Connection
+	channel    *amqp.Channel
+	Done       chan error
+	publishes  chan uint64
 }
 
-func OpenChannel(connection *amqp.Connection, done chan bool, publishes chan uint64) (*amqp.Channel, error) {
-	channel, err := connection.Channel()
+func NewProducer() *Producer {
+	return &Producer{
+		connection: nil,
+		channel:    nil,
+		Done:       make(chan error),
+		publishes:  make(chan uint64, 8),
+	}
+}
+
+func (p *Producer) CreateConnection(amqpURI string) error {
+	var err error
+
+	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
+	config.Properties.SetClientConnectionName(constants.PRODUCER_CONNECTION)
+	p.connection, err = amqp.DialConfig(amqpURI, config)
 	if err != nil {
-		return nil, fmt.Errorf("channel: %s", err)
+		return fmt.Errorf("dial: %s", err)
+	}
+
+	return nil
+}
+
+func (p *Producer) OpenChannel() error {
+	var err error
+
+	if p.channel, err = p.connection.Channel(); err != nil {
+		return fmt.Errorf("channel: %s", err)
 	}
 
 	// put this channel into confirm mode
 	// client can ensure all messages successfully received by server
-	if err := channel.Confirm(false); err != nil {
-		return nil, fmt.Errorf("channel could not be put into confirm mode: %s", err)
+	if err := p.channel.Confirm(false); err != nil {
+		return fmt.Errorf("channel could not be put into confirm mode: %s", err)
 	}
 	// add listner for confirmation
-	confirms := channel.NotifyPublish(make(chan amqp.Confirmation, 1))
+	confirms := p.channel.NotifyPublish(make(chan amqp.Confirmation, 1))
 
-	go confirmHandler(done, publishes, confirms)
+	go p.confirmHandler(confirms)
 
-	return channel, nil
+	return nil
 }
 
-func confirmHandler(done chan bool, publishes chan uint64, confirms chan amqp.Confirmation) {
+func (p *Producer) confirmHandler(confirms chan amqp.Confirmation) {
 	m := make(map[uint64]bool)
 	for {
 		select {
-		case <-done:
+		case <-p.Done:
 			log.Println("confirmHandler is stopping")
 			return
-		case publishSeqNo := <-publishes:
+		case publishSeqNo := <-p.publishes:
 			log.Printf("waiting for confirmation of %d", publishSeqNo)
 			m[publishSeqNo] = false
 		case confirmed := <-confirms:
@@ -67,14 +85,14 @@ func confirmHandler(done chan bool, publishes chan uint64, confirms chan amqp.Co
 	}
 }
 
-func PublishMessage(channel *amqp.Channel, publishes chan uint64, body []byte) error {
+func (p *Producer) PublishMessage(body []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	seqNo := channel.GetNextPublishSeqNo()
+	seqNo := p.channel.GetNextPublishSeqNo()
 	log.Printf("publishing %dB body (%q)", len(body), body)
 
-	if err := channel.PublishWithContext(ctx,
+	if err := p.channel.PublishWithContext(ctx,
 		constants.RESULT_EXCHANGE, // publish to an exchange
 		constants.RESULT_KEY,      // routing to 0 or more queues
 		false,                     // mandatory
@@ -88,11 +106,23 @@ func PublishMessage(channel *amqp.Channel, publishes chan uint64, body []byte) e
 			Priority:        0,              // 0-9
 		},
 	); err != nil {
-		return fmt.Errorf("Exchange Publish: %s", err)
+		return fmt.Errorf("exchange publish: %s", err)
 	}
 
 	log.Printf("published %dB OK", len(body))
-	publishes <- seqNo
+	p.publishes <- seqNo
 
 	return nil
+}
+
+func (p *Producer) CleanUp() error {
+	if err := p.channel.Close(); err != nil {
+		return fmt.Errorf("channel close failed: %s", err)
+	}
+
+	if err := p.connection.Close(); err != nil {
+		return fmt.Errorf("connection close error: %s", err)
+	}
+
+	return <-p.Done
 }
