@@ -10,88 +10,35 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-// submission_result := make(map[string]interface{})
-// submission_result["submission_id"] = 999
-// submission_result["create_time"] = time.Now()
-// submission_result["result"] = "Accepted"
-// submission_result["accepted_number"] = 10
-// submission_result["total_score"] = 100
-// body, _ := json.Marshal(submission_result)
-
-func Publish(done chan bool, amqpURI, body string) error {
+func CreateConnection() (*amqp.Connection, error) {
 	// Create New RabbitMQ Connection (go <-> rabbitMQ)
 	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
 	config.Properties.SetClientConnectionName(constants.PRODUCER_CONNECTION)
-	connection, err := amqp.DialConfig(amqpURI, config)
+	connection, err := amqp.DialConfig("amqURI", config)
 	if err != nil {
-		return fmt.Errorf("Dial: %s", err)
+		return nil, fmt.Errorf("dial: %s", err)
 	}
-	defer connection.Close()
 
-	// Open a channel
+	return connection, nil
+}
+
+func OpenChannel(connection *amqp.Connection, done chan bool, publishes chan uint64) (*amqp.Channel, error) {
 	channel, err := connection.Channel()
 	if err != nil {
-		return fmt.Errorf("Channel: %s", err)
+		return nil, fmt.Errorf("channel: %s", err)
 	}
-
-	// Declare(Create) Exchange
-	if err := channel.ExchangeDeclare(
-		constants.RESULT_EXCHANGE, // name
-		constants.DIRECT_TYPE,     // type
-		true,                      // durable
-		false,                     // auto-deleted
-		false,                     // internal
-		false,                     // noWait
-		nil,                       // arguments
-	); err != nil {
-		return fmt.Errorf("Exchange Declare: %s", err)
-	}
-
-	var publishes chan uint64 = nil
-	var confirms chan amqp.Confirmation = nil
 
 	// put this channel into confirm mode
 	// client can ensure all messages successfully received by server
 	if err := channel.Confirm(false); err != nil {
-		return fmt.Errorf("Channel could not be put into confirm mode: %s", err)
+		return nil, fmt.Errorf("channel could not be put into confirm mode: %s", err)
 	}
 	// add listner for confirmation
-	publishes = make(chan uint64, 8)
-	confirms = channel.NotifyPublish(make(chan amqp.Confirmation, 1))
+	confirms := channel.NotifyPublish(make(chan amqp.Confirmation, 1))
 
 	go confirmHandler(done, publishes, confirms)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Publish Messages
-	for {
-		seqNo := channel.GetNextPublishSeqNo()
-		log.Printf("publishing %dB body (%q)", len(body), body)
-
-		if err := channel.PublishWithContext(ctx,
-			constants.RESULT_EXCHANGE, // publish to an exchange
-			constants.RESULT_KEY,      // routing to 0 or more queues
-			false,                     // mandatory
-			false,                     // immediate
-			amqp.Publishing{
-				Headers:         amqp.Table{},
-				ContentType:     "text/plain",
-				ContentEncoding: "",
-				Body:            []byte(body),
-				DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
-				Priority:        0,              // 0-9
-			},
-		); err != nil {
-			return fmt.Errorf("Exchange Publish: %s", err)
-		}
-
-		log.Printf("published %dB OK", len(body))
-		publishes <- seqNo
-
-	}
-
-	// return nil
+	return channel, nil
 }
 
 func confirmHandler(done chan bool, publishes chan uint64, confirms chan amqp.Confirmation) {
@@ -118,4 +65,34 @@ func confirmHandler(done chan bool, publishes chan uint64, confirms chan amqp.Co
 			log.Printf("outstanding confirmations: %d", len(m))
 		}
 	}
+}
+
+func PublishMessage(channel *amqp.Channel, publishes chan uint64, body []byte) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	seqNo := channel.GetNextPublishSeqNo()
+	log.Printf("publishing %dB body (%q)", len(body), body)
+
+	if err := channel.PublishWithContext(ctx,
+		constants.RESULT_EXCHANGE, // publish to an exchange
+		constants.RESULT_KEY,      // routing to 0 or more queues
+		false,                     // mandatory
+		false,                     // immediate
+		amqp.Publishing{
+			Headers:         amqp.Table{},
+			ContentType:     "text/plain",
+			ContentEncoding: "",
+			Body:            []byte(body),
+			DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
+			Priority:        0,              // 0-9
+		},
+	); err != nil {
+		return fmt.Errorf("Exchange Publish: %s", err)
+	}
+
+	log.Printf("published %dB OK", len(body))
+	publishes <- seqNo
+
+	return nil
 }

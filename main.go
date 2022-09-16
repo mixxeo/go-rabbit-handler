@@ -1,5 +1,13 @@
 package main
 
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/go-rabbit-handler/producer"
+)
+
 // import (
 // 	"fmt"
 
@@ -24,11 +32,31 @@ func main() {
 	*/
 
 	/*main for producer*/
-	/*
-		done := make(chan bool)
+	var err error
+	done := make(chan bool)
+	publishes := make(chan uint64, 8)
 
-		if err := producer.Publish(done, "URI", "submission result"); err != nil {
-			fmt.Errorf("%s", err)
-		}
-	*/
+	producerConnection, err := producer.CreateConnection()
+	if err != nil {
+		fmt.Errorf("%s", err)
+	}
+	defer producerConnection.Close()
+
+	producerChannel, err := producer.OpenChannel(producerConnection, done, publishes)
+	if err != nil {
+		fmt.Errorf("%s", err)
+	}
+	defer producerChannel.Close()
+
+	submission_result := make(map[string]interface{})
+	submission_result["submission_id"] = 999
+	submission_result["create_time"] = time.Now()
+	body, _ := json.Marshal(submission_result)
+
+	err = producer.PublishMessage(producerChannel, publishes, body)
+	if err != nil {
+		fmt.Errorf("%s", err)
+	}
+
+	done <- true
 }
