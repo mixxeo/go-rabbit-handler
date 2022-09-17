@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
 
-sudo apt install -y rabbitmq-server
 echo "AMQP_URI=\"amqp://skku:1234@localhost:5672/%2f\"" > .env
 
 # install rabbitmqadmin
 wget http://localhost:15672/cli/rabbitmqadmin
 chmod +x rabbitmqadmin
 sudo mv rabbitmqadmin /etc/rabbitmq
-
-# add user and permission
-# rabbitmqctl add_user skku 1234
-# rabbitmqctl set_user_tags skku administrator
-# rabbitmqctl set_permissions -p / skku ".*" ".*" ".*"
 
 # Make an Exchange
 rabbitmqadmin -u skku -p 1234 declare exchange name=judger-exchange type=direct

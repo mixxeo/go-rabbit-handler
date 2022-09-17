@@ -1,21 +1,16 @@
 package constants
 
 // connection name
-const PRODUCER_CONNECTION = "producer-connection"
-const CONSUMER_CONNECTION = "consumer-connection"
+const CONNECTION = "go-judger"
+
+// consumer tag
+const CONSUMER = "submission-consumer"
 
 // exchange name
-const RESULT_EXCHANGE = "result-exchange"
-const SUBMISSION_EXCHANGE = "submission-exchange"
-
-// exchange type
-const DIRECT_TYPE = "direct"
+const EXCHANGE = "judger-exchange"
 
 // exchange routing key
 const RESULT_KEY = "result"
 
 // queue name
 const SUBMISSION_QUEUE = "submission-queue"
-
-// queue binding key
-const SUBMISSION_KEY = "submission"

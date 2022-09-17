@@ -3,42 +3,53 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/go-rabbit-handler/constants"
+	"github.com/go-rabbit-handler/consumer"
 	"github.com/go-rabbit-handler/producer"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+func CreateConnection(amqpURI string) (*amqp.Connection, error) {
+	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
+	config.Properties.SetClientConnectionName(constants.CONNECTION)
+	connection, err := amqp.DialConfig(amqpURI, config)
+	if err != nil {
+		return nil, fmt.Errorf("dial: %s", err)
+	}
+
+	return connection, nil
+}
+
 func main() {
-	/*main for consumer*/
-	/*
-		c, err := consumer.NewConsumer("URI", "ctag")
-		if err != nil {
-			fmt.Errorf("%s", err)
-		}
-
-		// running until Consumer is done
-		<-c.Done
-
-		if err := c.CleanUp(); err != nil {
-			fmt.Errorf("Error during clean up: %s", err)
-		}
-	*/
-
-	/*main for producer*/
+	/*Open a TCP Connection*/
+	amqpURI := os.Getenv("amqpURI")
 	var err error
-	p := producer.NewProducer()
-
-	err = p.CreateConnection("amqp://skku:1234@localhost:5672/%2f")
+	connection, err := CreateConnection(amqpURI)
 	if err != nil {
-		fmt.Errorf("%s", err)
+		fmt.Printf("%s", err)
 	}
-	// connection close
 
-	err = p.OpenChannel()
-	if err != nil {
-		fmt.Errorf("%s", err)
+	/*Create Consumer*/
+	c := consumer.NewConsumer(connection, constants.CONSUMER)
+
+	if err = c.OpenChannel(); err != nil {
+		fmt.Printf("%s", err)
 	}
-	// channel close
+
+	if err = c.Subscribe(); err != nil {
+		fmt.Printf("%s", err)
+	}
+	defer c.CleanUp()
+
+	/*Create Producer*/
+	p := producer.NewProducer(connection)
+
+	if err = p.OpenChannel(); err != nil {
+		fmt.Printf("%s", err)
+	}
 
 	submission_result := make(map[string]interface{})
 	submission_result["submission_id"] = 999
@@ -47,8 +58,7 @@ func main() {
 
 	err = p.PublishMessage(body)
 	if err != nil {
-		fmt.Errorf("%s", err)
+		fmt.Printf("%s", err)
 	}
-
-	p.Done <- nil
+	defer p.CleanUp()
 }

@@ -15,26 +15,13 @@ type Consumer struct {
 	Done       chan error
 }
 
-func NewConsumer(ctag string) *Consumer {
+func NewConsumer(connection *amqp.Connection, ctag string) *Consumer {
 	return &Consumer{
-		connection: nil,
+		connection: connection,
 		channel:    nil,
 		tag:        ctag,
 		Done:       make(chan error),
 	}
-}
-
-func (c *Consumer) CreateConnection(amqpURI string) error {
-	var err error
-
-	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
-	config.Properties.SetClientConnectionName(constants.CONSUMER_CONNECTION)
-	c.connection, err = amqp.DialConfig(amqpURI, config)
-	if err != nil {
-		return fmt.Errorf("dial: %s", err)
-	}
-
-	return nil
 }
 
 func (c *Consumer) OpenChannel() error {
@@ -54,7 +41,6 @@ func (c *Consumer) OpenChannel() error {
 	}
 
 	return nil
-
 }
 
 func (c *Consumer) Subscribe() error {

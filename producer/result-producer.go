@@ -17,26 +17,13 @@ type Producer struct {
 	publishes  chan uint64
 }
 
-func NewProducer() *Producer {
+func NewProducer(connection *amqp.Connection) *Producer {
 	return &Producer{
-		connection: nil,
+		connection: connection,
 		channel:    nil,
 		Done:       make(chan error),
 		publishes:  make(chan uint64, 8),
 	}
-}
-
-func (p *Producer) CreateConnection(amqpURI string) error {
-	var err error
-
-	config := amqp.Config{Properties: amqp.NewConnectionProperties()}
-	config.Properties.SetClientConnectionName(constants.PRODUCER_CONNECTION)
-	p.connection, err = amqp.DialConfig(amqpURI, config)
-	if err != nil {
-		return fmt.Errorf("dial: %s", err)
-	}
-
-	return nil
 }
 
 func (p *Producer) OpenChannel() error {
@@ -93,10 +80,10 @@ func (p *Producer) PublishMessage(body []byte) error {
 	log.Printf("publishing %dB body (%q)", len(body), body)
 
 	if err := p.channel.PublishWithContext(ctx,
-		constants.RESULT_EXCHANGE, // publish to an exchange
-		constants.RESULT_KEY,      // routing to 0 or more queues
-		false,                     // mandatory
-		false,                     // immediate
+		constants.EXCHANGE,   // publish to an exchange
+		constants.RESULT_KEY, // routing to 0 or more queues
+		false,                // mandatory
+		false,                // immediate
 		amqp.Publishing{
 			Headers:         amqp.Table{},
 			ContentType:     "text/plain",
